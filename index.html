@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>QR코드 메이커</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap">
+<style>
+/* Layout: 설정 패널 + QR 카드 미리보기 2단(폰 1단). 파스텔 문구점 감성, QR 카드 자체는 항상 밝은 이미지 */
+:root{
+  --bg:#fff4f7; --surface:#ffffff; --fg:#4a2c3a; --muted:#8a6a78; --line:#f6d6e1;
+  --accent:#e9547f; --accent-ink:#ffffff; --soft:#ffe3ec; --danger:#c43c3c;
+  --display:"Jua","Gowun Dodum",system-ui,sans-serif;
+  --body:"Gowun Dodum",system-ui,-apple-system,"Malgun Gothic",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#211820; --surface:#2c2029; --fg:#f8e7ee; --muted:#c7a6b5; --line:#47323f;
+  --accent:#ff8fb0; --accent-ink:#2a1420; --soft:#3d2735; --danger:#ef7b7b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#211820; --surface:#2c2029; --fg:#f8e7ee; --muted:#c7a6b5; --line:#47323f;
+  --accent:#ff8fb0; --accent-ink:#2a1420; --soft:#3d2735; --danger:#ef7b7b; color-scheme:dark}
+html,body{background:var(--bg);color:var(--fg)}
+body{font-family:var(--body);font-size:15px;line-height:1.6;padding:0 16px;
+  background-image:radial-gradient(var(--line) 1.6px,transparent 1.8px);background-size:22px 22px}
+.wrap{max-width:980px;margin:0 auto;padding-block:32px 48px;display:flex;flex-direction:column;gap:24px}
+header h1{font-family:var(--display);font-weight:400;font-size:clamp(32px,6vw,44px);line-height:1.1;margin:0;color:var(--accent);text-wrap:balance}
+header p{margin:6px 0 0;color:var(--muted)}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:20px;align-items:start}
+@media (max-width:760px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:2px solid var(--line);border-radius:22px;padding:20px;display:flex;flex-direction:column;gap:18px;min-width:0}
+.lbl{font-family:var(--display);font-size:16px;color:var(--fg);display:block;margin-bottom:6px}
+.field{display:flex;flex-direction:column;min-width:0}
+input[type=text],textarea{font:inherit;color:var(--fg);background:var(--bg);border:2px solid var(--line);border-radius:14px;padding:11px 12px;width:100%;box-sizing:border-box;min-width:0}
+textarea{resize:vertical;min-height:70px;word-break:break-all}
+input:focus,textarea:focus,button:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--soft)}
+.hint{font-size:12.5px;color:var(--muted);margin:6px 0 0}
+.err{color:var(--danger)}
+.seg{display:flex;border:2px solid var(--line);border-radius:14px;overflow:hidden}
+.seg button{flex:1;font:inherit;font-size:14px;background:var(--bg);color:var(--fg);border:0;padding:9px 4px;cursor:pointer}
+.seg button+button{border-left:2px solid var(--line)}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);font-weight:700}
+.colors{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.sw{width:32px;height:32px;border-radius:50%;border:3px solid var(--surface);box-shadow:0 0 0 2px var(--line);cursor:pointer;padding:0}
+.sw[aria-pressed=true]{box-shadow:0 0 0 3px var(--accent)}
+.btn{font:inherit;font-size:14px;font-weight:700;border-radius:14px;padding:9px 14px;cursor:pointer;border:2px solid var(--line);background:var(--surface);color:var(--fg)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.preview{align-items:center;text-align:center}
+.card{width:100%;max-width:440px;display:block;border-radius:12px;border:2px solid var(--line)}
+.empty{width:100%;max-width:440px;aspect-ratio:9/10;border-radius:22px;border:2px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);box-sizing:border-box;padding:20px}
+.target{font-size:12.5px;color:var(--muted);word-break:break-all;margin:0}
+.actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;width:100%}
+.toast{font-size:13px;color:var(--accent);min-height:20px;margin:0}
+.big{position:fixed;inset:0;background:#ffffff;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2vh;padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(16px + env(safe-area-inset-bottom,0px));box-sizing:border-box;cursor:zoom-out}
+.big img{max-height:88vh;max-width:92vw;height:auto;width:auto}
+.big small{color:#8a6a78;font-size:14px}
+html{color-scheme:light}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>QR코드 메이커</h1>
+    <p>주소를 붙여넣으면 QR코드가 바로 만들어져요.</p>
+  </header>
+
+  <div class="grid">
+    <section class="panel" aria-label="설정">
+      <div class="field">
+        <label class="lbl" for="url">URL 주소</label>
+        <textarea id="url" rows="2" placeholder="https://forms.gle/...">https://www.google.com</textarea>
+        <p class="hint" id="urlHint">예시 주소가 들어 있어요. 지우고 원하는 주소를 붙여넣으세요.</p>
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="caption">카드 제목 (선택)</label>
+        <input type="text" id="caption" maxlength="24" placeholder="예: 3반 수행평가 설문">
+      </div>
+
+      <div class="field">
+        <span class="lbl">점 모양</span>
+        <div class="seg" id="shape" role="group" aria-label="점 모양">
+          <button type="button" data-v="dot" aria-pressed="true">동글동글</button>
+          <button type="button" data-v="square">반듯네모</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="lbl">색상</span>
+        <div class="colors" id="colors">
+          <button type="button" class="sw" data-c="#d6336c" style="background:#d6336c" aria-label="딸기 핑크" aria-pressed="true"></button>
+          <button type="button" class="sw" data-c="#6b3fa0" style="background:#6b3fa0" aria-label="라벤더"></button>
+          <button type="button" class="sw" data-c="#1f6fb2" style="background:#1f6fb2" aria-label="하늘"></button>
+          <button type="button" class="sw" data-c="#2b8a57" style="background:#2b8a57" aria-label="민트"></button>
+          <button type="button" class="sw" data-c="#7a4a2a" style="background:#7a4a2a" aria-label="코코아"></button>
+        </div>
+        <p class="hint">진한 색일수록 인식이 잘 돼요.</p>
+      </div>
+
+    </section>
+
+    <section class="panel preview" aria-label="미리보기">
+      <img class="card" id="cardImg" alt="완성된 QR코드">
+      <div class="empty" id="empty" hidden>주소를 입력하면 여기에 QR코드가 나타나요</div>
+      <p class="target" id="target"></p>
+      <div class="actions">
+        <button class="btn primary" id="bigBtn" type="button">크게 띄우기</button>
+        <button class="btn" id="saveImg" type="button">PNG 저장</button>
+        <button class="btn" id="copyImg" type="button">이미지 복사</button>
+        <button class="btn" id="copyUrl" type="button">주소 복사</button>
+      </div>
+      <p class="toast" id="toast" role="status"></p>
+      <p class="hint" style="margin:0">휴대폰에서는 QR 이미지를 길게 눌러서 저장할 수도 있어요.</p>
+    </section>
+  </div>
+</div>
+
+<div class="big" id="big" hidden role="dialog" aria-label="크게 보기">
+  <img id="bigImg" alt="크게 띄운 QR코드">
+  <small>화면을 누르거나 Esc를 누르면 닫혀요</small>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const state = { shape:'dot', color:'#d6336c' };
+
+
+
+  function normalize(raw){
+    let s = raw.trim();
+    if (!s) return '';
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(s) && /\.[a-z]{2,}/i.test(s)) s = 'https://' + s;
+    return s;
+  }
+  const WM_SRC='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAATsAAAAqCAIAAABDQ2saAAANl0lEQVR4AexbOZbqOhAVfy24gz6swKwAd0JE+jITQtIZIRkJhJB1StRJ2yuAFXAIntkL/1bJgyxLHhje6/5fPrKxZakkXdWkkvnn6g6HgEPg5yDwj3CHQ8Ah8HMQcBL7c+bK9dQhIISTWMcFDoGfhICT2Ntmy9VyCPwdBJzE/h3cXasOgdsQcBJ7G26ulkPg7yDgJPbv4O5adQjchoCT2Ntwc7VuQ8DVuhcBJ7H3IujqOwT+JAJOYv8k2q4th8C9CNwosRcc9zb9P6h/ucR0XC4/dKxp/2kMfD5h1kES6afh02ZGMSwCDT8PHV1Xib1spsNer+fhwM9wGpeYMZ72etNY6eBlM+wNN6Uyytu2t6AytBx5a8am0cWm1KZ3aL9xFFr7EifPC5bLZeB5vd5wWoahTBNP1gGm6GkNtMQOhEsI5HgJeiMHX9xlRC8xzzKmmfqPIciEgWAkNJTStJfqq91UXqjZspW0DTASEvqoAVStIKuVroSyGbecMYmOHCbVxLjM5Sk3w0bpNtWpnvHU8wqa1fdyaBgWoYcfmv0SYgr41drGnCKzk8RiKN78NIgS+d10Eg1OQW3Xi3buukvOx6OYLPRjMhDH0++UoSsN9GeHpOlYh+J4TipV781gnHYSp8PhALSStdjNvYwlKvQvX3vjCDHisdevFO+QARTQfJG2o8bK4HEvOA3WcprR/zwxGZr1+b3TTghRG0nKSlem6pXVfWNPRf9tDIgqCXyx+0xM1UfvReGJ0DB/b8bGRFPPgzwHOyHhA3RXjA2zH9hnXydQ/9xBYi+bX/NjGB22o5SH+qPtx9o/zleqVa1v7va3g5eRfry9NpDrWw+u2O+/8O+jL/FqfvTXSY4T6ENwkrW/C6wyK4Q/edMHyM8p2CDSNUHVT03HpqzvNbLx507QLM+yadbeY9YPGMtx/2XSlZffJ6284THnpFk/G11KtRYhA6U+Q6RfxgNDUZmlVHhBqRJXZX2RJe1XQkhYxg/ruWT8FPj6o9khCsVuWfay7A3UvmkvsWQH/LWmh/qzxcO6Ih58ZB4QPK5KgqviedNNG/bKe/W1IdfJfE7j33k5YlqInz7//beJL+wuQV79cTdJ0acS0bMlv1SowwNcoNxVofvyKM9ftJpTkTZyEtpjhHaff0L/ozWaJqWncLAz7bbaH/HeluIpLKgfwlL9MkkgARCOK9Z6NIY7t//Vrglb05zfWmIJZjF40flQcFesnmUfiuy4X8VYftcm7ssDLtxISgcewAcdVdeYvbvrdftyPgoDuml9/eftrfCo9LuxV5hrmjMDUIKxsCKlt/aA59Fsmx3vdGQP21llFpXWvFdfkKkzWVAudonJ2Sp0Epuc1IKwGJTsz3G3p0XwXBECG0CMkCJE3NqzLuQICaE4iMUE2puE1zIMdvCfDltYzeMcS8Jaf8VO6fY3rSWWYPZfvWpLNMN20zHakj9AIQs2a7ZL3Tq+2qQtZyfbyV1Pm1Oc1idWMw4pfa//9Ee6+1U8azJgAoS4uUtzevO3PROTyUghgkaIFAr4bRQ77HmqECm02YEPEaCAYzIcklHYbGAlNxu6HaKqF8zhNn+kYn/ZLMHCURQS85MYhOs136ck/fUHFnPg7/S58cek7BorlQoQ0KWMygNAgaEMo4RWKpL34JZnGu0dzpBWBUHzKcZO6/soOfDQR9trsh7sA68ciSNxMPgJzGuTj5omtBatj60llihYwVTDN7uAHcdN5tyMthR6Sc2a7UeCQG3cc4YR00d0Re6qgNFqElhN+AORoIjVntzSG/Y6qqs8m5PSpYldADHSwvG19bFiDNIQGCIgFAAZboQMyUVr31a1P6M5S6JoMqEi5/3y8/N8ptvJIkoQLMpiGeB8CH64mI1G2yR6/ST78z6bvReCQJX008LU0CXwnR+k00pkjvNfxJMyfgwXYehRRynQwAtMmMqpbW2PEBlB7nnL02CBoWcj5zExTkk0ESS3VAy2oj9DbAcyIBvjYtQiKYgFSzpn3XHpJLGt2vHX7DK+Gcxxq/qWQlWrdSGzbymdfJIrVn/uhY+FJflsn8YgSpm0qpTKb/hJ1esjcCyYRGUCTBrCdr4eBhAdD1gF8vGhktpVJJvno1HpATAzccSEnI/G+UGQZib96sMhsw0QzTxYBGP9K9ihS9ydeBXM8cCqF2Y6CsX+KxHGwxL8gHZBxG7yJjtrrNkq8/K1P5bXb37IGw1jkcBQenAREMjljoIeDEoucxA45JQShgLEYQgOJKumriGuRPoNCjGBDkBlqrKmXRSSYTqpRRgThgnv70yPkVhVo6Xht34fCpj62/aUzolxOOxaz+HVlWixosycM60e5oF8sZZn/cJOYBMBfhL0JvuI5BxWziFMTbEkhmiAY7EF0iPVjrMnJy3jEq2zXR5J1kx8Y6RBaqRYb6IIL6Wr5h9vZOo2Zd5+klyziPjoHZxdMCVNwMx7GfiDdH346vtFaD+dUDjdUGuIPcQxtvkBYRhZ5lN2r9X1AoH1oaWEcrxyGN77/XkaTLBpdVACuSiVy1zRfUg8XsgEyOVNw1Upx8b3CkA4kbwrpIlM/20RLW7TTa0lllyZqp1D62TpjO4yVgbc4ZaX2rkCA7ASK9G6XutFoI1rjJgYxtCUSG1CE7OPyGVPp91ud+JbvkwiMIIyKxj7ATMWsbuxWODlFTqai/7VC82iOH/RmtQUEUW3VYShdrBiVXK0DGXKLjEVwwJDTYkYL2DY4jiOxcvHx0yJoGJCAejgBH8SsY1guedt/kz8b8eIDTXcdJNWIznaFsIKvwc4QJ/mCYp4A4bAbOeKCAtYdURN9xfZc/KlYbAhw5RkXul6+VoGn0lauvSm8aG1xFLonT0qjSTrcVNEisrBg/parRJB/W48qYL1jLG18qXRsRbmF5i7AEetZ4z3Xsvd5D40sfQRyUNcYC/Pn7zTLZ/kLXKr2QXWarhK8siUiYGyot/rF9MkknTGZM+QkyU9Qz7DPcbKMKAPfGxoE9D6JwQAdMufl5ANOkCh3Q0SQGdDrajOtIfaDzb+EI0L9nshJuwws2YlhUwahEJJmTAlK8OQMBokw4ulsrw6Ne2hNRbQOp0+tpZYdg0pHphWTH94pVSz9kjOO8vnJymBtj/nY/1K0nsNw7G+NqM4fJ1nTDajbQc6lvt9qvkei2i9TMJJtlnG3urjN36qZNkhGvPy9B2ePvWjcsarIGipxpS69VBfOyFN1m+peDBKM7ZbVJlCbZyyZbWtHOXzjiqWsleoie0MyjZVrKSQESVFBHg3z/Za4QtUGYgGk8bAtZdKbAmRjNx4V24Q1KCe3HK2l1ghAwZBsd4ESrw7pThHt3ThMXXg8tzvUz2mK62okIUp3ESKL++WSnwRNLC+I58M2yrYV+j1EG1EZrckyeYb/bQTU6y2m0l571FU+mRmRBm6WmymUypBY6o4lxgkXFIwNkcqPLZ+pVrWBzAhwkk9BArIr25jqeVGy5vlky5ELWZj+tpBMZfWxute+DLcxda7cpmE1kB9HU1610FihaAQfijyEBBQEut0d4po/SdPWpIwG5UuJD7HHAj1FZYvGQ71TkFWSv4CWtp7UaNrWN9hU2G5P79OFthXIMUuy+Iqe6W0hTxTohAP+skhsyGFx8Ko0WUs6GAloPE14sdY6RQlut9dEpOfSXtHr69gbKyG4STD+tG6o4l6PCXfds7hpIQCBf2mGvSe1vKYmszvpazySQs9hJ5aESvXLD3JcFdqv7Wfxg9sJSXTtZPECoHQBPkNwBUJ0NaHftAga3nsIkJ91qWydUE9PYGOT7uRdUQQetS+QDkW34VBhVfTcqe3U3lGGAJDbZ0QsmASCAaGAh2u7+8w37UGtDMge80bAriU4HWR49bX2Ie8W18LiArjQRv9Ea3QBIdJW8groG7R86EyZex9z/NP8Ko4T6dAWm4oEAdhUFqiYAD7p1gxG4dhzMTYGCMKJ2kAGcvLTETyab+Yv3ygb0PYl6ELLD9C1sOeR1+ItABKkrNdj/uVCQiZR16xMVxro1bkd5RYWRGwUpIP6hXqS85LkQlUE+zFQ33WpeZ/qGBBcW2ko5LBxETrASJERV8qd4OQPtivZGsZNNa2Z14VnAnxy4LFtrG/KeFTrpq3w0/qRcWWrEBp20YtWLknB5xFomwwXwbZ1gvfFSxPUxY19XyhYg0PAVhXGlYyBuuOGzfqcBU6nW+9cYhhFoMjAtDCNDcTscduvPxOjhwahJL2Uq/BuaZytpP6Vitvkvds1ZEPOJIbdcJNEosmzQlQGKwuOVeaV1B5LENqpi7gk1UqljNKZDJOJW61nUqowNLoHdnNAy/1t74lFVvcN+xs1dOit1ApYEzqgLyjvPxsRnpUFv9GrItdlbyR2hsM0cBKtVWMLw2D43KYmxlC1Vmwmm01DP+W7DUXqLlQ3xrkrQmPrnAUvXmsxBZ03Z1DwCHwDAScxDaj6ko4BL4PAk5iv89cuJ44BJoRcBLbjJEr4RD4Pgg4if0+c+F64hBoRsBJbDNGrsRtCLhaz0DASewzUHU0HQLPQsBJ7LOQdXQdAs9AwEnsM1B1NB0Cz0LASeyzkHV0HQK3IVBfy0lsPT7urUPgeyHgJPZ7zYfrjUOgHgEnsfX4uLcOge+FwL8AAAD//wAqFNkAAAAGSURBVAMAZYPBZ1je23IAAAAASUVORK5CYII=';
+  let wmImg=null;
+  function rr(g,x,y,w,h,r){ g.beginPath(); g.roundRect ? g.roundRect(x,y,w,h,r) : g.rect(x,y,w,h); }
+
+  let lastCanvas = null;
+  function render(){
+    const text = normalize($('url').value);
+    const cap = $('caption').value.trim();
+    const hint = $('urlHint');
+    if (!text){
+      $('cardImg').hidden = true; $('empty').hidden = false; $('target').textContent='';
+      setButtons(false); hint.textContent='URL 주소를 입력해 주세요.'; hint.classList.remove('err'); lastCanvas=null; return;
+    }
+    if (!window.qrcode){ hint.textContent='QR 도구를 불러오지 못했어요. 페이지를 새로고침해 주세요.'; hint.classList.add('err'); return; }
+    let qr;
+    try {
+      try { qr = qrcode(4,'M'); qr.addData(text); qr.make(); }
+      catch(_){ qr = qrcode(0,'M'); qr.addData(text); qr.make(); }
+    }
+    catch(e){
+      $('cardImg').hidden = true; $('empty').hidden = false; setButtons(false);
+      hint.textContent='주소가 너무 길어요. 단축 주소(예: forms.gle)를 써 보세요.'; hint.classList.add('err'); return;
+    }
+    hint.classList.remove('err');
+    hint.textContent = text !== $('url').value.trim() ? '앞에 https:// 를 붙여서 만들었어요.' : '스마트폰 카메라로 비추면 이 주소로 이동해요.';
+
+    const W = 900, top = cap ? 110 : 0, n = qr.getModuleCount();
+    const cell = W/(n+8), Q = cell*4, inner = cell*n, ox = Q, oy = top+Q;
+    const wmW = 600, wmH = wmImg ? wmW*wmImg.height/wmImg.width : 80, wmY = oy+inner+cell*3;
+    const H = Math.round(wmY + wmH + 50);
+    const c = document.createElement('canvas'); c.width=W; c.height=H;
+    const g = c.getContext('2d');
+    g.fillStyle='#ffffff'; g.fillRect(0,0,W,H);
+
+    if (cap){
+      g.fillStyle=state.color; g.font='56px Jua, "Gowun Dodum", sans-serif'; g.textAlign='center'; g.textBaseline='middle';
+      g.fillText(cap, W/2, 80, W-120);
+    }
+
+    const isFinder=(r,col)=>(r<7&&col<7)||(r<7&&col>=n-7)||(r>=n-7&&col<7);
+    g.fillStyle=state.color;
+    for(let r=0;r<n;r++) for(let col=0;col<n;col++){
+      if(!qr.isDark(r,col) || isFinder(r,col)) continue;
+      const x=ox+col*cell, y=oy+r*cell;
+      if(state.shape==='square'){ g.fillRect(x,y,cell+0.4,cell+0.4); continue; }
+      const R=cell*0.46, mx=x+cell/2, my=y+cell/2;
+      g.beginPath(); g.arc(mx,my,R,0,7); g.fill();
+      // 이웃한 점끼리 이어서 인식이 잘 되게
+      const D=(a,b)=>a<n&&b<n&&qr.isDark(a,b)&&!isFinder(a,b);
+      if(D(r,col+1)) g.fillRect(mx,my-R,cell,2*R);
+      if(D(r+1,col)) g.fillRect(mx-R,my,2*R,cell);
+    }
+    // 큰 눈 3개
+    const eyeR = state.shape==='square' ? 0 : 1;
+    [[0,0],[0,n-7],[n-7,0]].forEach(([r,col])=>{
+      const x=ox+col*cell, y=oy+r*cell;
+      g.fillStyle=state.color; rr(g,x,y,cell*7,cell*7,cell*2.2*eyeR); g.fill();
+      g.fillStyle='#ffffff'; rr(g,x+cell,y+cell,cell*5,cell*5,cell*1.6*eyeR); g.fill();
+      g.fillStyle=state.color; rr(g,x+cell*2,y+cell*2,cell*3,cell*3,cell*1.5*eyeR); g.fill();
+    });
+
+    // 워터마크 (항상)
+    if (wmImg){
+      g.imageSmoothingEnabled=true; g.imageSmoothingQuality='high';
+      g.drawImage(wmImg,(W-wmW)/2,wmY,wmW,wmH);
+    } else {
+      g.fillStyle='#000000'; g.font='48px "Gowun Dodum", sans-serif'; g.textAlign='center'; g.textBaseline='middle';
+      g.fillText('아는 만큼 보인다, 혜윤쌤의 가정수업', W/2, wmY+wmH/2, wmW);
+    }
+
+    lastCanvas = c;
+    const img = $('cardImg'); img.src = c.toDataURL('image/png'); img.hidden=false; $('empty').hidden=true;
+    $('target').textContent = text; setButtons(true);
+  }
+  function setButtons(on){ ['bigBtn','saveImg','copyImg','copyUrl'].forEach(id=>$(id).disabled=!on); }
+
+  $('shape').addEventListener('click', e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    [...$('shape').children].forEach(x=>x.setAttribute('aria-pressed', x===b));
+    state.shape=b.dataset.v; render();
+  });
+  $('colors').addEventListener('click', e=>{
+    const b=e.target.closest('.sw'); if(!b) return;
+    document.querySelectorAll('.sw').forEach(x=>x.setAttribute('aria-pressed', x===b));
+    state.color=b.dataset.c; render();
+  });
+
+  let t; $('url').addEventListener('input', ()=>{ clearTimeout(t); t=setTimeout(render,120); });
+  $('caption').addEventListener('input', ()=>{ clearTimeout(t); t=setTimeout(render,120); });
+
+  let toastT;
+  function toast(msg){ $('toast').textContent=msg; clearTimeout(toastT); toastT=setTimeout(()=>$('toast').textContent='',2600); }
+
+  $('copyUrl').addEventListener('click', ()=>{
+    const text=$('target').textContent;
+    const fallback=()=>{ const r=document.createRange(); r.selectNodeContents($('target')); const s=getSelection(); s.removeAllRanges(); s.addRange(r); toast('주소를 선택해 두었어요. Ctrl+C로 복사하세요.'); };
+    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(()=>toast('주소를 복사했어요.'),fallback); else fallback();
+  });
+  $('saveImg').addEventListener('click', ()=>{
+    if(!lastCanvas) return;
+    const name=(($('caption').value.trim()||'QR코드').replace(/[\\/:*?"<>|]/g,''))+'.png';
+    lastCanvas.toBlob(b=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); toast('PNG로 저장했어요.'); },'image/png');
+  });
+  $('copyImg').addEventListener('click', ()=>{
+    if(!lastCanvas) return;
+    const fail=()=>toast('이 화면에서는 이미지 복사가 막혀 있어요. 카드를 오른쪽 클릭해 복사·저장하세요.');
+    if(!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem)) return fail();
+    try{
+      const blobP=new Promise(res=>lastCanvas.toBlob(res,'image/png'));
+      navigator.clipboard.write([new ClipboardItem({'image/png':blobP})]).then(()=>toast('이미지를 복사했어요. 한글·PPT에 붙여넣으세요.'),fail);
+    }catch(e){ fail(); }
+  });
+
+  function openBig(){
+    $('bigImg').src=$('cardImg').src; $('big').hidden=false;
+    const el=$('big'); if(el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+  }
+  function closeBig(){ $('big').hidden=true; if(document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(()=>{}); }
+  $('bigBtn').addEventListener('click', openBig);
+  $('big').addEventListener('click', closeBig);
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && !$('big').hidden) closeBig(); });
+  document.addEventListener('fullscreenchange', ()=>{ if(!document.fullscreenElement) $('big').hidden=true; });
+
+  function setupLib(){ if(window.qrcode && qrcode.stringToBytesFuncs) qrcode.stringToBytes=qrcode.stringToBytesFuncs['UTF-8']; }
+  function start(){
+    setupLib();
+    const fontsReady = document.fonts ? Promise.all([document.fonts.load('52px Jua'), document.fonts.load('34px "Gowun Dodum"')]).catch(()=>{}) : Promise.resolve();
+    Promise.all([fontsReady, new Promise(res=>{ const i=new Image(); i.onload=()=>{wmImg=i;res();}; i.onerror=res; i.src=WM_SRC; })]).then(render);
+    render();
+  }
+  if(window.qrcode) start();
+  else {
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
+    s.onload=start; s.onerror=start; document.head.appendChild(s);
+  }
+})();
+</script>
+
+</body>
+</html>
